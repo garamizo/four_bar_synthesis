@@ -31,7 +31,7 @@ alf = coeff(1)^2 + coeff(2)^2;
 R = [ coeff(1) coeff(2); -coeff(2) coeff(1) ] / alf;
 P = repmat( coeff(3:4), [1 N] );
 
-aux = alf*R * [X'; Y'] + P;
+aux = alf * R * [X'; Y'] + P;
 Xf = aux(1,:)';
 Yf = aux(2,:)';
 
