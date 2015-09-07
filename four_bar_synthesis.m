@@ -4,19 +4,23 @@ clear; clc
 l1 = 30e-2;
 l2 = 10e-2;
 l3 = 20e-2;
-l4 = 20e-2;
+l4 = 22e-2;
 
 % Simulate trajectory
-N = 15;
+N = 30;
 th1 = linspace( pi, pi, N )';
-th2 = linspace( 0, 2*pi, N )' + pi/3;
+th2 = linspace( 0, 2*pi, N )' + pi/4;
 
+th3 = NaN(N,1);
+th4 = NaN(N,1);
 x = [0 -pi/2];
 for k = 1 : N
-    x = fsolve( @(x) [ l1*cos(th1(k)) + l2*cos(th2(k)) + l3*cos(x(1)) + l4*cos(x(2)) 
-                       l1*sin(th1(k)) + l2*sin(th2(k)) + l3*sin(x(1)) + l4*sin(x(2)) ], x );
-    th3(k) = x(1);
-    th4(k) = x(2);
+    [x,~,flag] = fsolve( @(x) [ l1*cos(th1(k)) + l2*cos(th2(k)) + l3*cos(x(1)) + l4*cos(x(2)) 
+                                l1*sin(th1(k)) + l2*sin(th2(k)) + l3*sin(x(1)) + l4*sin(x(2)) ], x );
+    if flag == 1
+        th3(k) = x(1);
+        th4(k) = x(2);
+    end
 end
 
 % Animate 
@@ -34,30 +38,55 @@ end
 %% Generate some trajectory
 nn = (1 : N)';
 
-X = sin( nn * 2*pi/N ).^3;
-Y = - 3*cos( nn * 2*pi/N );
+X = .2*cos( nn * 1*pi/N );
+Y = 0.01*sin( nn * 1*pi/N );
 
-aux = 2*[cos(pi/3) sin(pi/3) 3; -sin(pi/3) cos(pi/3) -2; 0 0 1] * [X'; Y'; ones(1,N)];
-Xg = aux(1,:)';
-Yg = aux(2,:)';
+figure; plot( cumsum( [0 l2*cos(th2(1)) l3*cos(th3(1)) l4*cos(th4(1)) l1*cos(th1(1))] ), ...
+    cumsum( [0 l2*sin(th2(1)) l3*sin(th3(1)) l4*sin(th4(1)) l1*sin(th1(1))] ), 'o-' );
+[Xp,Yp] = getpts();
+s = [0; cumsum( sqrt( diff(Xp).^2 + diff(Yp).^2 ) )];
+X = interp1( s*N/s(end), Xp, nn );
+Y = interp1( s*N/s(end), Yp, nn );
 
-% subplot(211); plot( X, Y )
-% subplot(212); plot( Xg, Yg )
-
-tmp = angle2dcm( th3, zeros(N,1), zeros(N,1), 'ZXY' );
+tmp = angle2dcm( -th3, zeros(N,1), zeros(N,1), 'ZXY' );
 tmp = reshape( permute(tmp(1:2,1:2,:),[2 1 3]), [2 2*N] )';
-A = [-tmp reshape( [ X Y ones(N,1) zeros(N,1) Y -X zeros(N,1) ones(N,1) ]', [4 2*N] )'];
+A = [-tmp reshape( [ X -Y ones(N,1) zeros(N,1) Y X zeros(N,1) ones(N,1) ]', [4 2*N] )'];
 B = reshape( [ l2*cos(th2) l2*sin(th2) ]', [1 2*N] )';
 
 coeff = A \ B;
+LM = fitlm( A, B, 'Intercept', false );
 
-alf = coeff(3)^2 + coeff(4)^2;
-R = [ coeff(3) coeff(4); -coeff(4) coeff(3) ] / alf;
-P = repmat( coeff(5:6), [1 N] );
+rx = coeff(1);
+ry = coeff(2);
+alf = sqrt( coeff(3)^2 + coeff(4)^2 );
+R = [ coeff(3) -coeff(4); coeff(4) coeff(3) ] / alf;
+P0 = repmat( coeff(5:6), [1 N] )';
+dx = coeff(5);
+dy = coeff(6);
 
-aux = alf * R * [X'; Y'] + P;
-Xf = l2*cos(th2) + aux(1,:)';
-Yf = aux(2,:)';
+tmp = ( l2*[cos(th2) sin(th2)] + [rx*cos(th3)-ry*sin(th3), rx*sin(th3)+ry*cos(th3)] - P0 ) * R / alf;
+Xf = tmp(:,1);
+Yf = tmp(:,2);
 
-subplot(211); plot( X, Y, 'bo-', Xg, Yg, 'ro-', reshape([X Xg NaN(N,1)]', [1 3*N])', reshape([Y Yg NaN(N,1)]', [1 3*N])', 'y' ); axis equal
-subplot(212); plot( Xf, Yf, 'bo-', Xg, Yg, 'ro--', reshape([Xf Xg NaN(N,1)]', [1 3*N])', reshape([Yf Yg NaN(N,1)]', [1 3*N])', 'y' ); axis equ
+figure
+plot( Xf, Yf, 'bo-', X, Y, 'ro--', reshape([X Xf NaN(N,1)]', [1 3*N])', reshape([Y Yf NaN(N,1)]', [1 3*N])', 'y' ); axis equal
+legend( 'fit', 'target' )
+
+%% Animate 
+figure
+plot( X, Y, '--' )
+hold on
+h = plot( 0, 0, 'o-' );
+axis( [-.1 .4 -.2 .3 ] )
+fps = 5;
+
+while true
+for k = 1 : N
+    lp = [ cumsum( [0 l2*cos(th2(k)) l3*cos(th3(k)) l4*cos(th4(k)) l1*cos(th1(k))] )
+           cumsum( [0 l2*sin(th2(k)) l3*sin(th3(k)) l4*sin(th4(k)) l1*sin(th1(k))] ) ];
+    lp = [lp(:,1:2) [l2*cos(th2(k))+rx*cos(th3(k))-ry*sin(th3(k)); l2*sin(th2(k))+rx*sin(th3(k))+ry*cos(th3(k))] lp(:,[3 2:end])];
+    lp = R \ ( lp - repmat( [dx; dy], [1 8] ) ) / alf;
+    set( h, 'XData', lp(1,:), 'YData', lp(2,:) );
+    pause( 1/fps )
+end
+end
