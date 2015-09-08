@@ -1,4 +1,4 @@
-% Define link lengths
+%% Define link lengths
 clear; clc
 
 l1 = 30e-2;
@@ -6,7 +6,7 @@ l2 = 10e-2;
 l3 = 20e-2;
 l4 = 22e-2;
 
-% Simulate trajectory
+% Calculate kinematics
 N = 30;
 th1 = linspace( pi, pi, N )';
 th2 = linspace( 0, 2*pi, N )' + pi/4;
@@ -23,7 +23,7 @@ for k = 1 : N
     end
 end
 
-% Animate 
+% Animate kinematics 
 figure
 h = plot( 0, 0 );
 axis( [-.1 .4 -.2 .3 ] )
@@ -35,7 +35,7 @@ for k = 1 : N
     pause( 1/fps )
 end
 
-%% Generate some trajectory
+%% Generate desired trajectory
 nn = (1 : N)';
 
 X = .2*cos( nn * 1*pi/N );
@@ -48,6 +48,7 @@ s = [0; cumsum( sqrt( diff(Xp).^2 + diff(Yp).^2 ) )];
 X = interp1( s*N/s(end), Xp, nn );
 Y = interp1( s*N/s(end), Yp, nn );
 
+% Calculate physical parameters
 tmp = angle2dcm( -th3, zeros(N,1), zeros(N,1), 'ZXY' );
 tmp = reshape( permute(tmp(1:2,1:2,:),[2 1 3]), [2 2*N] )';
 A = [-tmp reshape( [ X -Y ones(N,1) zeros(N,1) Y X zeros(N,1) ones(N,1) ]', [4 2*N] )'];
@@ -59,10 +60,12 @@ LM = fitlm( A, B, 'Intercept', false );
 rx = coeff(1);
 ry = coeff(2);
 alf = sqrt( coeff(3)^2 + coeff(4)^2 );
-R = [ coeff(3) -coeff(4); coeff(4) coeff(3) ] / alf;
-P0 = repmat( coeff(5:6), [1 N] )';
+psi = atan2( coeff(4), coeff(3) );
 dx = coeff(5);
 dy = coeff(6);
+
+R = [ cos(psi) -sin(psi); sin(psi) cos(psi) ];
+P0 = repmat( [dx dy], [N 1] );
 
 tmp = ( l2*[cos(th2) sin(th2)] + [rx*cos(th3)-ry*sin(th3), rx*sin(th3)+ry*cos(th3)] - P0 ) * R / alf;
 Xf = tmp(:,1);
@@ -77,7 +80,7 @@ figure
 plot( X, Y, '--' )
 hold on
 h = plot( 0, 0, 'o-' );
-axis( [-.1 .4 -.2 .3 ] )
+axis( [min(X)-2*(max(X)-min(X)) max(X)+2*(max(X)-min(X)) min(Y)-2*(max(Y)-min(Y)) max(Y)+2*(max(Y)-min(Y))] )
 fps = 5;
 
 while true
